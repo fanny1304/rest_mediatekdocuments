@@ -46,10 +46,16 @@ class MyAccessBDD extends AccessBDD {
             case "etat" :
                 // select portant sur une table contenant juste id et libelle
                 return $this->selectTableSimple($table);
-            case "exemplaire" :
-                return $this->selectExemplairesRevue($champs['id']);
-            case "" :
-                // return $this->uneFonction(parametres);
+            case "commandedocument" :
+                return $this->selectAllCommandesDocument($champs);
+            case "abonnementrevue":
+                return $this->selectAllAbonnementsRevue($champs);
+            case "abonnementecheance":
+                return $this->selectAllAbonnementsEcheance();
+            case "exemplairedocument":
+                return $this->selectAllExemplairesDocument($champs);
+            case "utilisateur":
+                return $this->selectUtilisateur($champs);
             default:
                 // cas général
                 return $this->selectTuplesOneTable($table, $champs);
@@ -83,8 +89,8 @@ class MyAccessBDD extends AccessBDD {
      */	
     protected function traitementUpdate(string $table, ?string $id, ?array $champs) : ?int{
         switch($table){
-            case "" :
-                // return $this->uneFonction(parametres);
+            case "exemplairedocument":
+                return $this->updateOneExemplaireDocument($table, $id, $champs);
             default:                    
                 // cas général
                 return $this->updateOneTupleOneTable($table, $id, $champs);
@@ -185,6 +191,39 @@ class MyAccessBDD extends AccessBDD {
     }
     
     /**
+     * demande de modification (update) de l'exemplaire d'un document
+     * @param string $table
+     * @param string|null $id
+     * @param array|null $champs
+     * @return int|null nombre de tuples modifiés (0 ou 1) ou null si erreur
+     */
+    private function updateOneExemplaireDocument(string $table, ?string $id, ?array $champs) : ?int {
+        if(empty($champs)){
+            return null;
+        }
+        if(is_null($id)){
+            return null;
+        }
+        $champsExemplaire = [
+            'id' => $champs['Id'],
+            'numero' => $champs['Numero'], 
+            'dateAchat' => $champs['DateAchat'], 
+            'photo' => $champs['Photo'],
+            'idEtat' => $champs['IdEtat']
+        ];
+        // construction de la requête
+        $requete = "update exemplaire set ";
+        foreach ($champsExemplaire as $key => $value){
+            $requete .= "$key=:$key,";
+        }
+        // (enlève la dernière virgule)
+        $requete = substr($requete, 0, strlen($requete)-1);
+        $requete .= " where id=:id and numero=:numero;";
+        $champsExemplaire['numero'] = $id;
+        return $this->conn->updateBDD($requete, $champsExemplaire);
+    }
+    
+    /**
      * demande de suppression (delete) d'un ou plusieurs tuples dans une table
      * @param string $table
      * @param array|null $champs
@@ -258,6 +297,31 @@ class MyAccessBDD extends AccessBDD {
         $requete .= "order by titre ";
         return $this->conn->queryBDD($requete);
     }	
+    
+    
+    /**
+     * Récupère toutes les informations concernant les commandes d'un document
+     * @param array\null $champs
+     * @return array|null
+     */
+    private function selectAllCommandesDocument($champs) : ?array{
+        if(empty($champs)){
+            return null;
+        }
+        if(!array_key_exists('id', $champs)){
+            return null;
+        }
+        $champNecessaire['id'] = $champs['id'];
+        $requete  = "SELECT max(c.dateCommande) as dateCommande, cd.nbExemplaire, cd.idLivreDvd, cd.idSuivi, s.libelle, cd.id, sum(c.montant) as montant ";
+        $requete .= "FROM commandedocument as cd ";
+        $requete .= "JOIN suivi AS s ON (s.id = cd.idSuivi) ";
+        $requete .= "LEFT JOIN commande as c ON (cd.id = c.id) ";
+        $requete .= "WHERE cd.idLivreDvd = :id ";
+        $requete .= "GROUP BY cd.id ";
+        $requete .= "ORDER BY dateCommande DESC";       
+        return $this->conn->queryBdd($requete, $champNecessaire);
+    }
+    
 
     /**
      * récupère tous les exemplaires d'une revue
@@ -278,5 +342,80 @@ class MyAccessBDD extends AccessBDD {
         $requete .= "order by e.dateAchat DESC";		
         return $this->conn->queryBDD($requete, $champNecessaire);
     }		    
+    
+    /**
+     * récupère tous les abonnements associés à une revue
+     * @param array|null $champs
+     * @return array|null
+     */
+    private function selectAllAbonnementsRevue(?array $champs) : ?array{
+        if(empty($champs)){
+            return null;
+        }
+        if(!array_key_exists('id', $champs)){
+            return null;
+        }
+        $champNecessaire['id'] = $champs['id'];
+        $requete = "select c.id, c.dateCommande, c.montant, a.dateFinAbonnement, a.idRevue ";
+        $requete .= "from commande c join abonnement a ON c.id = a.id ";
+        $requete .= "where a.idRevue = :id ";
+        $requete .= "order by c.dateCommande DESC";
+        return $this->conn->queryBDD($requete, $champNecessaire);
+    }
+    
+    /**
+     * Récupère tous les abonnements arrivant à échéance
+     * @return array|null
+     */
+    private function selectAllAbonnementsEcheance() : ?array {
+        $requete =  "select a.id, a.dateFinAbonnement, r.id, d.titre ";
+        $requete .= "from abonnement a ";
+        $requete .= "join revue r ON a.idRevue = r.id ";
+        $requete .= "join document d ON d.id = r.id ";
+        $requete .= "where datediff(current_date(), a.dateFinAbonnement) < 30 ";
+        $requete .= "order by a.dateFinAbonnement ASC";
+        return $this->conn->queryBDD($requete);
+    }
+    
+    /**
+     * Récupère tous les exemplaires d'un document
+     * @param type $champs
+     * @return array|null
+     */
+    private function selectAllExemplairesDocument($champs) : ?array{
+        if (empty($champs)){
+            return null;
+        }
+        if (!array_key_exists('id', $champs)){
+            return null;
+        }
+        $champNecessaire['id'] = $champs['id'];
+        $requete  = "select e.id, e.numero, e.dateAchat, e.photo, e.idEtat, et.libelle ";
+        $requete .= "from exemplaire e ";
+        $requete .= "join etat et on e.idEtat = et.id ";
+        $requete .= "where e.id = :id ";
+        $requete .= "order by e.dateAchat DESC";
+        return $this->conn->queryBDD($requete, $champNecessaire);
+    }
+    
+    /**
+     * Récupère l'utilisateur qui souhaite se connecter
+     * @param type $champs
+     * @return array|null
+     */
+    private function selectUtilisateur($champs) : ?array{
+        if (empty($champs)){
+            return null;
+        }
+        if (!array_key_exists('id', $champs)){
+            return null;
+        }
+        $champNecessaire['id'] = $champs['id'];
+        $requete =  "select u.login, u.password, u.idService, s.libelle ";
+        $requete .= "from utilisateur u ";
+        $requete .= "join service s on u.idService = s.id ";
+        $requete .= "where u.login = :id";
+        return $this->conn->queryBDD($requete, $champNecessaire);
+    }
     
 }
