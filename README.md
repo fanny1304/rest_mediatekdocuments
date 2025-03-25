@@ -6,7 +6,7 @@ Les ajouts faits dans cette API ne concernent que les fichiers '.env' (qui conti
 Cette API permet d'exécuter des requêtes SQL sur la BDD Mediatek86 créée avec le SGBDR MySQL.<br>
 Elle est accessible via une authentification "basique" (avec login="fLadmin", pwd="90PLsx6l").<br>
 Sa vocation actuelle est de répondre aux demandes de l'application MediaTekDocuments, mise en ligne sur le dépôt :<br>
-[https://github.com/CNED-SLAM/MediaTekDocuments](https://github.com/fanny1304/mediatekdocuments)
+https://github.com/fanny1304/mediatekdocuments
 
 <h1>Installation de l'API en local</h1>
 Pour tester l'API REST en local, voici le mode opératoire (similaire à celui donné dans le dépôt d'API de base) :
