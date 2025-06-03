@@ -63,7 +63,7 @@ class Controle{
         if (!is_null($result)){
             $this->reponse(200, "OK", $result);
         }else{	
-            $this->reponse(400, "requete invalide");
+            $this->reponse(400, "requête invalide");
         }        
     }
 	
